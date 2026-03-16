@@ -4,10 +4,11 @@ import { useEffect, useState } from "react";
 import { useSession } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import BookCard from "@/components/BookCard";
+import BookCard, { GroupedBook } from "@/components/BookCard";
 
 interface BookEntry {
   id: string;
+  googleBooksId: string;
   title: string;
   author: string;
   coverImage: string | null;
@@ -24,10 +25,28 @@ const TABS = [
   { key: "OWNED", label: "Owned" },
 ];
 
+function groupEntries(entries: BookEntry[]): GroupedBook[] {
+  const map = new Map<string, GroupedBook>();
+  for (const entry of entries) {
+    if (!map.has(entry.googleBooksId)) {
+      map.set(entry.googleBooksId, {
+        googleBooksId: entry.googleBooksId,
+        title: entry.title,
+        author: entry.author,
+        coverImage: entry.coverImage,
+        rating: entry.rating,
+        entries: [],
+      });
+    }
+    map.get(entry.googleBooksId)!.entries.push({ id: entry.id, status: entry.status });
+  }
+  return [...map.values()];
+}
+
 export default function ShelfPage() {
   const { data: session, status } = useSession();
   const router = useRouter();
-  const [books, setBooks] = useState<BookEntry[]>([]);
+  const [entries, setEntries] = useState<BookEntry[]>([]);
   const [tab, setTab] = useState("ALL");
   const [loading, setLoading] = useState(true);
 
@@ -39,31 +58,48 @@ export default function ShelfPage() {
     if (status !== "authenticated") return;
     fetch("/api/shelf")
       .then((r) => r.json())
-      .then((d) => setBooks(d.entries ?? []))
+      .then((d) => setEntries(d.entries ?? []))
       .finally(() => setLoading(false));
   }, [status]);
 
-  async function handleRemove(id: string) {
+  async function handleRemoveFromShelf(entryId: string) {
     await fetch("/api/shelf", {
       method: "DELETE",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ id }),
+      body: JSON.stringify({ id: entryId }),
     });
-    setBooks((prev) => prev.filter((b) => b.id !== id));
+    setEntries((prev) => prev.filter((e) => e.id !== entryId));
   }
 
-  async function handleStatusChange(id: string, newStatus: string) {
-    await fetch("/api/shelf", {
-      method: "PATCH",
+  async function handleAddToShelf(googleBooksId: string, shelfStatus: string) {
+    // Find existing entry to copy metadata from
+    const existing = entries.find((e) => e.googleBooksId === googleBooksId);
+    if (!existing) return;
+
+    const res = await fetch("/api/shelf", {
+      method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ id, status: newStatus }),
+      body: JSON.stringify({
+        googleBooksId,
+        title: existing.title,
+        author: existing.author,
+        coverImage: existing.coverImage,
+        status: shelfStatus,
+      }),
     });
-    setBooks((prev) =>
-      prev.map((b) => (b.id === id ? { ...b, status: newStatus } : b))
-    );
+    const data = await res.json();
+    if (data.entry) {
+      setEntries((prev) => [...prev, { ...data.entry, rating: null, review: null }]);
+    }
   }
 
-  const filtered = tab === "ALL" ? books : books.filter((b) => b.status === tab);
+  const grouped = groupEntries(entries);
+  const uniqueBookCount = grouped.length;
+
+  const filtered =
+    tab === "ALL"
+      ? grouped
+      : grouped.filter((b) => b.entries.some((e) => e.status === tab));
 
   if (status === "loading" || loading) {
     return (
@@ -81,7 +117,7 @@ export default function ShelfPage() {
             {session?.user?.name?.split(" ")[0]}&apos;s Shelf
           </h1>
           <p className="text-gray-500 text-sm mt-1" style={{ fontFamily: "system-ui, sans-serif" }}>
-            {books.length} {books.length === 1 ? "book" : "books"} total
+            {uniqueBookCount} {uniqueBookCount === 1 ? "book" : "books"} · hover a cover to manage shelves
           </p>
         </div>
         <Link
@@ -94,12 +130,12 @@ export default function ShelfPage() {
       </div>
 
       {/* Tabs */}
-      <div
-        className="flex gap-1 mb-8 border-b border-gray-200"
-        style={{ fontFamily: "system-ui, sans-serif" }}
-      >
+      <div className="flex gap-1 mb-8 border-b border-gray-200" style={{ fontFamily: "system-ui, sans-serif" }}>
         {TABS.map((t) => {
-          const count = t.key === "ALL" ? books.length : books.filter((b) => b.status === t.key).length;
+          const count =
+            t.key === "ALL"
+              ? uniqueBookCount
+              : grouped.filter((b) => b.entries.some((e) => e.status === t.key)).length;
           return (
             <button
               key={t.key}
@@ -111,9 +147,7 @@ export default function ShelfPage() {
               }`}
             >
               {t.label}
-              {count > 0 && (
-                <span className="ml-1.5 text-xs text-gray-400">({count})</span>
-              )}
+              {count > 0 && <span className="ml-1.5 text-xs text-gray-400">({count})</span>}
             </button>
           );
         })}
@@ -123,15 +157,9 @@ export default function ShelfPage() {
         <div className="text-center py-24">
           <p className="text-5xl mb-4">📖</p>
           <p className="text-gray-500 mb-4" style={{ fontFamily: "system-ui, sans-serif" }}>
-            {tab === "ALL"
-              ? "Your shelf is empty. Start adding books!"
-              : `No books in this category yet.`}
+            {tab === "ALL" ? "Your shelf is empty. Start adding books!" : "No books in this category yet."}
           </p>
-          <Link
-            href="/search"
-            className="text-black underline text-sm"
-            style={{ fontFamily: "system-ui, sans-serif" }}
-          >
+          <Link href="/search" className="text-black underline text-sm" style={{ fontFamily: "system-ui, sans-serif" }}>
             Search for books
           </Link>
         </div>
@@ -139,10 +167,10 @@ export default function ShelfPage() {
         <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-4">
           {filtered.map((book) => (
             <BookCard
-              key={book.id}
+              key={book.googleBooksId}
               book={book}
-              onRemove={handleRemove}
-              onStatusChange={handleStatusChange}
+              onRemoveFromShelf={handleRemoveFromShelf}
+              onAddToShelf={handleAddToShelf}
             />
           ))}
         </div>

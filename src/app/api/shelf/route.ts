@@ -15,6 +15,7 @@ export async function GET() {
   return NextResponse.json({ entries });
 }
 
+// Add a book to one shelf (called once per status)
 export async function POST(req: NextRequest) {
   const session = await auth();
   if (!session?.user?.id)
@@ -27,8 +28,14 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Missing fields" }, { status: 400 });
 
   const entry = await prisma.bookEntry.upsert({
-    where: { userId_googleBooksId: { userId: session.user.id, googleBooksId } },
-    update: { status, coverImage, description },
+    where: {
+      userId_googleBooksId_status: {
+        userId: session.user.id,
+        googleBooksId,
+        status,
+      },
+    },
+    update: { coverImage, description },
     create: {
       userId: session.user.id,
       googleBooksId,
@@ -45,6 +52,7 @@ export async function POST(req: NextRequest) {
   return NextResponse.json({ entry });
 }
 
+// Remove a book from one specific shelf by entry id
 export async function DELETE(req: NextRequest) {
   const session = await auth();
   if (!session?.user?.id)
@@ -64,11 +72,11 @@ export async function PATCH(req: NextRequest) {
   if (!session?.user?.id)
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-  const { id, rating, review, status } = await req.json();
+  const { id, rating, review } = await req.json();
 
   const entry = await prisma.bookEntry.updateMany({
     where: { id, userId: session.user.id },
-    data: { rating, review, status },
+    data: { rating, review },
   });
 
   return NextResponse.json({ entry });

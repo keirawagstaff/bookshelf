@@ -3,10 +3,11 @@
 import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { useSession } from "next-auth/react";
-import BookCard from "@/components/BookCard";
+import BookCard, { GroupedBook } from "@/components/BookCard";
 
 interface BookEntry {
   id: string;
+  googleBooksId: string;
   title: string;
   author: string;
   coverImage: string | null;
@@ -23,11 +24,29 @@ const TABS = [
   { key: "OWNED", label: "Owned" },
 ];
 
+function groupEntries(entries: BookEntry[]): GroupedBook[] {
+  const map = new Map<string, GroupedBook>();
+  for (const entry of entries) {
+    if (!map.has(entry.googleBooksId)) {
+      map.set(entry.googleBooksId, {
+        googleBooksId: entry.googleBooksId,
+        title: entry.title,
+        author: entry.author,
+        coverImage: entry.coverImage,
+        rating: entry.rating,
+        entries: [],
+      });
+    }
+    map.get(entry.googleBooksId)!.entries.push({ id: entry.id, status: entry.status });
+  }
+  return [...map.values()];
+}
+
 export default function FriendShelfPage() {
   const { userId } = useParams<{ userId: string }>();
   const { status } = useSession();
   const router = useRouter();
-  const [books, setBooks] = useState<BookEntry[]>([]);
+  const [entries, setEntries] = useState<BookEntry[]>([]);
   const [friendName, setFriendName] = useState("");
   const [tab, setTab] = useState("ALL");
   const [loading, setLoading] = useState(true);
@@ -46,13 +65,17 @@ export default function FriendShelfPage() {
           return;
         }
         const d = await r.json();
-        setBooks(d.entries ?? []);
+        setEntries(d.entries ?? []);
         setFriendName(d.user?.name ?? "");
       })
       .finally(() => setLoading(false));
   }, [status, userId]);
 
-  const filtered = tab === "ALL" ? books : books.filter((b) => b.status === tab);
+  const grouped = groupEntries(entries);
+  const filtered =
+    tab === "ALL"
+      ? grouped
+      : grouped.filter((b) => b.entries.some((e) => e.status === tab));
 
   if (loading) {
     return (
@@ -75,14 +98,16 @@ export default function FriendShelfPage() {
       <div className="mb-8">
         <h1 className="text-3xl font-bold">{friendName}&apos;s Shelf</h1>
         <p className="text-gray-500 text-sm mt-1" style={{ fontFamily: "system-ui, sans-serif" }}>
-          {books.length} {books.length === 1 ? "book" : "books"} total
+          {grouped.length} {grouped.length === 1 ? "book" : "books"} total
         </p>
       </div>
 
-      {/* Tabs */}
       <div className="flex gap-1 mb-8 border-b border-gray-200" style={{ fontFamily: "system-ui, sans-serif" }}>
         {TABS.map((t) => {
-          const count = t.key === "ALL" ? books.length : books.filter((b) => b.status === t.key).length;
+          const count =
+            t.key === "ALL"
+              ? grouped.length
+              : grouped.filter((b) => b.entries.some((e) => e.status === t.key)).length;
           return (
             <button
               key={t.key}
@@ -107,7 +132,7 @@ export default function FriendShelfPage() {
       ) : (
         <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-4">
           {filtered.map((book) => (
-            <BookCard key={book.id} book={book} />
+            <BookCard key={book.googleBooksId} book={book} />
           ))}
         </div>
       )}

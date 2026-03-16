@@ -1,10 +1,9 @@
 "use client";
 
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import { useSession } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import Image from "next/image";
-import { useEffect } from "react";
 
 interface BookResult {
   id: string;
@@ -23,52 +22,94 @@ const STATUS_OPTIONS = [
   { value: "OWNED", label: "Owned" },
 ];
 
+// Per-book shelf selection state
+interface BookShelfState {
+  selected: Set<string>; // statuses selected but not yet added
+  added: Set<string>;    // statuses already saved
+  saving: boolean;
+}
+
 export default function SearchPage() {
   const { status } = useSession();
   const router = useRouter();
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<BookResult[]>([]);
   const [loading, setLoading] = useState(false);
-  const [adding, setAdding] = useState<string | null>(null);
-  const [added, setAdded] = useState<Set<string>>(new Set());
+  const [bookStates, setBookStates] = useState<Record<string, BookShelfState>>({});
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
     if (status === "unauthenticated") router.push("/login");
   }, [status, router]);
 
+  function getState(bookId: string): BookShelfState {
+    return bookStates[bookId] ?? { selected: new Set(), added: new Set(), saving: false };
+  }
+
+  function toggleStatus(bookId: string, statusValue: string) {
+    setBookStates((prev) => {
+      const state = prev[bookId] ?? { selected: new Set(), added: new Set(), saving: false };
+      if (state.added.has(statusValue)) return prev; // already saved, can't unselect here
+      const next = new Set(state.selected);
+      if (next.has(statusValue)) next.delete(statusValue);
+      else next.add(statusValue);
+      return { ...prev, [bookId]: { ...state, selected: next } };
+    });
+  }
+
+  async function addToShelves(book: BookResult) {
+    const state = getState(book.id);
+    if (state.selected.size === 0 || state.saving) return;
+
+    setBookStates((prev) => ({
+      ...prev,
+      [book.id]: { ...getState(book.id), saving: true },
+    }));
+
+    await Promise.all(
+      [...state.selected].map((s) =>
+        fetch("/api/shelf", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            googleBooksId: book.id,
+            title: book.title,
+            author: book.author,
+            coverImage: book.coverImage,
+            description: book.description,
+            pageCount: book.pageCount,
+            publishedDate: book.publishedDate,
+            status: s,
+          }),
+        })
+      )
+    );
+
+    setBookStates((prev) => {
+      const state = prev[book.id];
+      const newAdded = new Set([...state.added, ...state.selected]);
+      return {
+        ...prev,
+        [book.id]: { selected: new Set(), added: newAdded, saving: false },
+      };
+    });
+  }
+
   function handleSearch(q: string) {
     setQuery(q);
     if (debounceRef.current) clearTimeout(debounceRef.current);
-    if (!q.trim()) { setResults([]); return; }
-
+    if (!q.trim()) {
+      setResults([]);
+      return;
+    }
     debounceRef.current = setTimeout(async () => {
       setLoading(true);
       const res = await fetch(`/api/books/search?q=${encodeURIComponent(q)}`);
       const data = await res.json();
       setResults(data.results ?? []);
+      setBookStates({});
       setLoading(false);
     }, 400);
-  }
-
-  async function addToShelf(book: BookResult, status: string) {
-    setAdding(book.id);
-    await fetch("/api/shelf", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        googleBooksId: book.id,
-        title: book.title,
-        author: book.author,
-        coverImage: book.coverImage,
-        description: book.description,
-        pageCount: book.pageCount,
-        publishedDate: book.publishedDate,
-        status,
-      }),
-    });
-    setAdded((prev) => new Set([...prev, book.id]));
-    setAdding(null);
   }
 
   return (
@@ -78,7 +119,6 @@ export default function SearchPage() {
         Powered by Google Books — search by title, author, or ISBN
       </p>
 
-      {/* Search input */}
       <div className="relative mb-8">
         <input
           type="text"
@@ -94,70 +134,82 @@ export default function SearchPage() {
         )}
       </div>
 
-      {/* Results */}
       {results.length > 0 && (
         <div className="space-y-3">
-          {results.map((book) => (
-            <div
-              key={book.id}
-              className="flex gap-4 p-4 border border-gray-200 rounded-lg hover:border-gray-400 transition-colors"
-            >
-              {/* Cover */}
-              <div className="relative w-12 h-16 flex-shrink-0 bg-gray-100 rounded overflow-hidden">
-                {book.coverImage ? (
-                  <Image
-                    src={book.coverImage}
-                    alt={book.title}
-                    fill
-                    className="object-cover"
-                    sizes="48px"
-                  />
-                ) : (
-                  <div className="w-full h-full bg-gray-200 flex items-center justify-center text-xs text-gray-400">
-                    📖
-                  </div>
-                )}
-              </div>
+          {results.map((book) => {
+            const state = getState(book.id);
+            const hasSelection = state.selected.size > 0;
 
-              {/* Info */}
-              <div className="flex-1 min-w-0">
-                <p className="font-semibold text-sm leading-tight">{book.title}</p>
-                <p className="text-gray-500 text-xs mt-0.5" style={{ fontFamily: "system-ui, sans-serif" }}>
-                  {book.author}
-                  {book.publishedDate && ` · ${book.publishedDate.slice(0, 4)}`}
-                  {book.pageCount && ` · ${book.pageCount} pages`}
-                </p>
-                {book.description && (
-                  <p className="text-gray-400 text-xs mt-1 line-clamp-2" style={{ fontFamily: "system-ui, sans-serif" }}>
-                    {book.description}
+            return (
+              <div
+                key={book.id}
+                className="flex gap-4 p-4 border border-gray-200 rounded-lg hover:border-gray-400 transition-colors"
+              >
+                {/* Cover */}
+                <div className="relative w-12 h-16 flex-shrink-0 bg-gray-100 rounded overflow-hidden">
+                  {book.coverImage ? (
+                    <Image
+                      src={book.coverImage}
+                      alt={book.title}
+                      fill
+                      className="object-cover"
+                      sizes="48px"
+                    />
+                  ) : (
+                    <div className="w-full h-full bg-gray-200 flex items-center justify-center text-xs text-gray-400">
+                      📖
+                    </div>
+                  )}
+                </div>
+
+                {/* Info */}
+                <div className="flex-1 min-w-0">
+                  <p className="font-semibold text-sm leading-tight">{book.title}</p>
+                  <p className="text-gray-500 text-xs mt-0.5" style={{ fontFamily: "system-ui, sans-serif" }}>
+                    {book.author}
+                    {book.publishedDate && ` · ${book.publishedDate.slice(0, 4)}`}
+                    {book.pageCount && ` · ${book.pageCount} pages`}
                   </p>
-                )}
-              </div>
+                  {book.description && (
+                    <p className="text-gray-400 text-xs mt-1 line-clamp-2" style={{ fontFamily: "system-ui, sans-serif" }}>
+                      {book.description}
+                    </p>
+                  )}
+                </div>
 
-              {/* Add button */}
-              <div className="flex-shrink-0 flex items-center">
-                {added.has(book.id) ? (
-                  <span className="text-xs text-gray-400" style={{ fontFamily: "system-ui, sans-serif" }}>
-                    ✓ Added
-                  </span>
-                ) : (
-                  <div className="flex flex-col gap-1">
-                    {STATUS_OPTIONS.map((opt) => (
-                      <button
+                {/* Shelf checkboxes */}
+                <div className="flex-shrink-0 flex flex-col justify-center gap-1.5 min-w-[130px]" style={{ fontFamily: "system-ui, sans-serif" }}>
+                  {STATUS_OPTIONS.map((opt) => {
+                    const isAdded = state.added.has(opt.value);
+                    const isChecked = state.selected.has(opt.value) || isAdded;
+                    return (
+                      <label
                         key={opt.value}
-                        onClick={() => addToShelf(book, opt.value)}
-                        disabled={adding === book.id}
-                        className="text-xs border border-gray-300 rounded px-2 py-0.5 hover:bg-black hover:text-white hover:border-black transition-colors disabled:opacity-50"
-                        style={{ fontFamily: "system-ui, sans-serif" }}
+                        className={`flex items-center gap-2 text-xs cursor-pointer select-none ${isAdded ? "text-gray-400" : "text-gray-700 hover:text-black"}`}
                       >
+                        <input
+                          type="checkbox"
+                          checked={isChecked}
+                          disabled={isAdded}
+                          onChange={() => toggleStatus(book.id, opt.value)}
+                          className="accent-black"
+                        />
                         {opt.label}
-                      </button>
-                    ))}
-                  </div>
-                )}
+                        {isAdded && <span className="text-gray-300">✓</span>}
+                      </label>
+                    );
+                  })}
+                  <button
+                    onClick={() => addToShelves(book)}
+                    disabled={!hasSelection || state.saving}
+                    className="mt-1 text-xs bg-black text-white rounded px-2 py-1 hover:bg-gray-800 transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+                  >
+                    {state.saving ? "Adding…" : "Add to shelf"}
+                  </button>
+                </div>
               </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       )}
 

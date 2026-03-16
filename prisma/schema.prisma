@@ -79,7 +79,7 @@ model BookEntry {
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
-  @@unique([userId, googleBooksId])
+  @@unique([userId, googleBooksId, status])
 }
 
 // status: PENDING | ACCEPTED | REJECTED
