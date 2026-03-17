@@ -4,19 +4,18 @@ import { prisma } from "@/lib/prisma";
 import { createSession } from "@/lib/session";
 
 export async function POST(req: NextRequest) {
-  const { name, email, password } = await req.json();
+  const { email, password } = await req.json();
 
-  if (!name || !email || !password)
+  if (!email || !password)
     return NextResponse.json({ error: "Missing fields" }, { status: 400 });
 
-  const existing = await prisma.user.findUnique({ where: { email } });
-  if (existing)
-    return NextResponse.json({ error: "Email already in use" }, { status: 400 });
+  const user = await prisma.user.findUnique({ where: { email } });
+  if (!user || !user.password)
+    return NextResponse.json({ error: "Invalid email or password" }, { status: 401 });
 
-  const hashed = await bcrypt.hash(password, 12);
-  const user = await prisma.user.create({
-    data: { name, email, password: hashed },
-  });
+  const valid = await bcrypt.compare(password, user.password);
+  if (!valid)
+    return NextResponse.json({ error: "Invalid email or password" }, { status: 401 });
 
   await createSession({ id: user.id, name: user.name, email: user.email });
   return NextResponse.json({ id: user.id, name: user.name, email: user.email });

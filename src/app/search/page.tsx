@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useRef, useEffect } from "react";
-import { useSession } from "next-auth/react";
+import { useAuth } from "@/components/AuthProvider";
 import { useRouter } from "next/navigation";
 import Image from "next/image";
 
@@ -22,15 +22,14 @@ const STATUS_OPTIONS = [
   { value: "OWNED", label: "Owned" },
 ];
 
-// Per-book shelf selection state
 interface BookShelfState {
-  selected: Set<string>; // statuses selected but not yet added
-  added: Set<string>;    // statuses already saved
+  selected: Set<string>;
+  added: Set<string>;
   saving: boolean;
 }
 
 export default function SearchPage() {
-  const { status } = useSession();
+  const { user, loading: authLoading } = useAuth();
   const router = useRouter();
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<BookResult[]>([]);
@@ -39,8 +38,8 @@ export default function SearchPage() {
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
-    if (status === "unauthenticated") router.push("/login");
-  }, [status, router]);
+    if (!authLoading && !user) router.push("/login");
+  }, [authLoading, user, router]);
 
   function getState(bookId: string): BookShelfState {
     return bookStates[bookId] ?? { selected: new Set(), added: new Set(), saving: false };
@@ -49,7 +48,7 @@ export default function SearchPage() {
   function toggleStatus(bookId: string, statusValue: string) {
     setBookStates((prev) => {
       const state = prev[bookId] ?? { selected: new Set(), added: new Set(), saving: false };
-      if (state.added.has(statusValue)) return prev; // already saved, can't unselect here
+      if (state.added.has(statusValue)) return prev;
       const next = new Set(state.selected);
       if (next.has(statusValue)) next.delete(statusValue);
       else next.add(statusValue);
@@ -66,7 +65,7 @@ export default function SearchPage() {
       [book.id]: { ...getState(book.id), saving: true },
     }));
 
-    await Promise.all(
+    const responses = await Promise.all(
       [...state.selected].map((s) =>
         fetch("/api/shelf", {
           method: "POST",
@@ -81,27 +80,24 @@ export default function SearchPage() {
             publishedDate: book.publishedDate,
             status: s,
           }),
-        })
+        }).then(async (r) => ({ status: s, ok: r.ok }))
       )
     );
 
+    const succeeded = new Set(responses.filter((r) => r.ok).map((r) => r.status));
+
     setBookStates((prev) => {
       const state = prev[book.id];
-      const newAdded = new Set([...state.added, ...state.selected]);
-      return {
-        ...prev,
-        [book.id]: { selected: new Set(), added: newAdded, saving: false },
-      };
+      const newAdded = new Set([...state.added, ...succeeded]);
+      const remaining = new Set([...state.selected].filter((s) => !succeeded.has(s)));
+      return { ...prev, [book.id]: { selected: remaining, added: newAdded, saving: false } };
     });
   }
 
   function handleSearch(q: string) {
     setQuery(q);
     if (debounceRef.current) clearTimeout(debounceRef.current);
-    if (!q.trim()) {
-      setResults([]);
-      return;
-    }
+    if (!q.trim()) { setResults([]); return; }
     debounceRef.current = setTimeout(async () => {
       setLoading(true);
       const res = await fetch(`/api/books/search?q=${encodeURIComponent(q)}`);
@@ -120,15 +116,10 @@ export default function SearchPage() {
       </p>
 
       <div className="relative mb-8">
-        <input
-          type="text"
-          value={query}
-          onChange={(e) => handleSearch(e.target.value)}
+        <input type="text" value={query} onChange={(e) => handleSearch(e.target.value)}
           placeholder="Search for a book…"
           className="w-full border border-gray-300 rounded-full px-5 py-3 text-sm focus:outline-none focus:border-black transition-colors pr-12"
-          style={{ fontFamily: "system-ui, sans-serif" }}
-          autoFocus
-        />
+          style={{ fontFamily: "system-ui, sans-serif" }} autoFocus />
         {loading && (
           <div className="absolute right-4 top-1/2 -translate-y-1/2 w-4 h-4 border-2 border-gray-400 border-t-black rounded-full animate-spin" />
         )}
@@ -138,31 +129,16 @@ export default function SearchPage() {
         <div className="space-y-3">
           {results.map((book) => {
             const state = getState(book.id);
-            const hasSelection = state.selected.size > 0;
-
             return (
-              <div
-                key={book.id}
-                className="flex gap-4 p-4 border border-gray-200 rounded-lg hover:border-gray-400 transition-colors"
-              >
-                {/* Cover */}
+              <div key={book.id} className="flex gap-4 p-4 border border-gray-200 rounded-lg hover:border-gray-400 transition-colors">
                 <div className="relative w-12 h-16 flex-shrink-0 bg-gray-100 rounded overflow-hidden">
                   {book.coverImage ? (
-                    <Image
-                      src={book.coverImage}
-                      alt={book.title}
-                      fill
-                      className="object-cover"
-                      sizes="48px"
-                    />
+                    <Image src={book.coverImage} alt={book.title} fill className="object-cover" sizes="48px" />
                   ) : (
-                    <div className="w-full h-full bg-gray-200 flex items-center justify-center text-xs text-gray-400">
-                      📖
-                    </div>
+                    <div className="w-full h-full bg-gray-200 flex items-center justify-center text-xs text-gray-400">📖</div>
                   )}
                 </div>
 
-                {/* Info */}
                 <div className="flex-1 min-w-0">
                   <p className="font-semibold text-sm leading-tight">{book.title}</p>
                   <p className="text-gray-500 text-xs mt-0.5" style={{ fontFamily: "system-ui, sans-serif" }}>
@@ -177,33 +153,24 @@ export default function SearchPage() {
                   )}
                 </div>
 
-                {/* Shelf checkboxes */}
                 <div className="flex-shrink-0 flex flex-col justify-center gap-1.5 min-w-[130px]" style={{ fontFamily: "system-ui, sans-serif" }}>
                   {STATUS_OPTIONS.map((opt) => {
                     const isAdded = state.added.has(opt.value);
                     const isChecked = state.selected.has(opt.value) || isAdded;
                     return (
-                      <label
-                        key={opt.value}
-                        className={`flex items-center gap-2 text-xs cursor-pointer select-none ${isAdded ? "text-gray-400" : "text-gray-700 hover:text-black"}`}
-                      >
-                        <input
-                          type="checkbox"
-                          checked={isChecked}
-                          disabled={isAdded}
-                          onChange={() => toggleStatus(book.id, opt.value)}
-                          className="accent-black"
-                        />
+                      <label key={opt.value}
+                        className={`flex items-center gap-2 text-xs cursor-pointer select-none ${isAdded ? "text-gray-400" : "text-gray-700 hover:text-black"}`}>
+                        <input type="checkbox" checked={isChecked} disabled={isAdded}
+                          onChange={() => toggleStatus(book.id, opt.value)} className="accent-black" />
                         {opt.label}
                         {isAdded && <span className="text-gray-300">✓</span>}
                       </label>
                     );
                   })}
-                  <button
-                    onClick={() => addToShelves(book)}
-                    disabled={!hasSelection || state.saving}
+                  <button onClick={() => addToShelves(book)}
+                    disabled={state.selected.size === 0 || state.saving}
                     className="mt-1 text-xs bg-black text-white rounded px-2 py-1 hover:bg-gray-800 transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
-                  >
+                    style={{ fontFamily: "system-ui, sans-serif" }}>
                     {state.saving ? "Adding…" : "Add to shelf"}
                   </button>
                 </div>

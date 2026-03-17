@@ -1,25 +1,26 @@
 import { NextRequest, NextResponse } from "next/server";
-import { auth } from "@/lib/auth";
+import { getSession } from "@/lib/session";
 import { prisma } from "@/lib/prisma";
 
 export async function GET() {
-  const session = await auth();
-  if (!session?.user?.id)
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const session = await getSession();
+  if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-  const entries = await prisma.bookEntry.findMany({
-    where: { userId: session.user.id },
-    orderBy: { updatedAt: "desc" },
-  });
-
-  return NextResponse.json({ entries });
+  try {
+    const entries = await prisma.bookEntry.findMany({
+      where: { userId: session.id },
+      orderBy: { updatedAt: "desc" },
+    });
+    return NextResponse.json({ entries });
+  } catch (e) {
+    console.error("GET /api/shelf error:", e);
+    return NextResponse.json({ error: "Database error" }, { status: 500 });
+  }
 }
 
-// Add a book to one shelf (called once per status)
 export async function POST(req: NextRequest) {
-  const session = await auth();
-  if (!session?.user?.id)
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const session = await getSession();
+  if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const body = await req.json();
   const { googleBooksId, title, author, coverImage, description, status, pageCount, publishedDate } = body;
@@ -27,57 +28,46 @@ export async function POST(req: NextRequest) {
   if (!googleBooksId || !title || !status)
     return NextResponse.json({ error: "Missing fields" }, { status: 400 });
 
-  const entry = await prisma.bookEntry.upsert({
-    where: {
-      userId_googleBooksId_status: {
-        userId: session.user.id,
-        googleBooksId,
-        status,
-      },
-    },
-    update: { coverImage, description },
-    create: {
-      userId: session.user.id,
-      googleBooksId,
-      title,
-      author,
-      coverImage,
-      description,
-      status,
-      pageCount,
-      publishedDate,
-    },
-  });
-
-  return NextResponse.json({ entry });
+  try {
+    const entry = await prisma.bookEntry.upsert({
+      where: { userId_googleBooksId_status: { userId: session.id, googleBooksId, status } },
+      update: { coverImage, description },
+      create: { userId: session.id, googleBooksId, title, author, coverImage, description, status, pageCount, publishedDate },
+    });
+    return NextResponse.json({ entry });
+  } catch (e) {
+    console.error("POST /api/shelf error:", e);
+    return NextResponse.json({ error: "Database error" }, { status: 500 });
+  }
 }
 
-// Remove a book from one specific shelf by entry id
 export async function DELETE(req: NextRequest) {
-  const session = await auth();
-  if (!session?.user?.id)
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const session = await getSession();
+  if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const { id } = await req.json();
-
-  await prisma.bookEntry.deleteMany({
-    where: { id, userId: session.user.id },
-  });
-
-  return NextResponse.json({ success: true });
+  try {
+    await prisma.bookEntry.deleteMany({ where: { id, userId: session.id } });
+    return NextResponse.json({ success: true });
+  } catch (e) {
+    console.error("DELETE /api/shelf error:", e);
+    return NextResponse.json({ error: "Database error" }, { status: 500 });
+  }
 }
 
 export async function PATCH(req: NextRequest) {
-  const session = await auth();
-  if (!session?.user?.id)
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const session = await getSession();
+  if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const { id, rating, review } = await req.json();
-
-  const entry = await prisma.bookEntry.updateMany({
-    where: { id, userId: session.user.id },
-    data: { rating, review },
-  });
-
-  return NextResponse.json({ entry });
+  try {
+    const entry = await prisma.bookEntry.updateMany({
+      where: { id, userId: session.id },
+      data: { rating, review },
+    });
+    return NextResponse.json({ entry });
+  } catch (e) {
+    console.error("PATCH /api/shelf error:", e);
+    return NextResponse.json({ error: "Database error" }, { status: 500 });
+  }
 }

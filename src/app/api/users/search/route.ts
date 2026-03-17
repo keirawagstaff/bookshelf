@@ -1,11 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
-import { auth } from "@/lib/auth";
+import { getSession } from "@/lib/session";
 import { prisma } from "@/lib/prisma";
 
 export async function GET(req: NextRequest) {
-  const session = await auth();
-  if (!session?.user?.id)
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const session = await getSession();
+  if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const q = req.nextUrl.searchParams.get("q");
   if (!q) return NextResponse.json({ users: [] });
@@ -13,13 +12,8 @@ export async function GET(req: NextRequest) {
   const users = await prisma.user.findMany({
     where: {
       AND: [
-        { NOT: { id: session.user.id } },
-        {
-          OR: [
-            { name: { contains: q } },
-            { email: { contains: q } },
-          ],
-        },
+        { NOT: { id: session.id } },
+        { OR: [{ name: { contains: q } }, { email: { contains: q } }] },
       ],
     },
     select: { id: true, name: true, image: true },

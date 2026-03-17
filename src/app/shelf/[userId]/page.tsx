@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
-import { useSession } from "next-auth/react";
+import { useAuth } from "@/components/AuthProvider";
 import BookCard, { GroupedBook } from "@/components/BookCard";
 
 interface BookEntry {
@@ -44,7 +44,7 @@ function groupEntries(entries: BookEntry[]): GroupedBook[] {
 
 export default function FriendShelfPage() {
   const { userId } = useParams<{ userId: string }>();
-  const { status } = useSession();
+  const { user, loading: authLoading } = useAuth();
   const router = useRouter();
   const [entries, setEntries] = useState<BookEntry[]>([]);
   const [friendName, setFriendName] = useState("");
@@ -53,11 +53,11 @@ export default function FriendShelfPage() {
   const [error, setError] = useState("");
 
   useEffect(() => {
-    if (status === "unauthenticated") router.push("/login");
-  }, [status, router]);
+    if (!authLoading && !user) router.push("/login");
+  }, [authLoading, user, router]);
 
   useEffect(() => {
-    if (status !== "authenticated") return;
+    if (!user) return;
     fetch(`/api/users/${userId}/shelf`)
       .then(async (r) => {
         if (!r.ok) {

@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useSession } from "next-auth/react";
+import { useAuth } from "@/components/AuthProvider";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import BookCard, { GroupedBook } from "@/components/BookCard";
@@ -44,23 +44,23 @@ function groupEntries(entries: BookEntry[]): GroupedBook[] {
 }
 
 export default function ShelfPage() {
-  const { data: session, status } = useSession();
+  const { user, loading: authLoading } = useAuth();
   const router = useRouter();
   const [entries, setEntries] = useState<BookEntry[]>([]);
   const [tab, setTab] = useState("ALL");
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    if (status === "unauthenticated") router.push("/login");
-  }, [status, router]);
+    if (!authLoading && !user) router.push("/login");
+  }, [authLoading, user, router]);
 
   useEffect(() => {
-    if (status !== "authenticated") return;
+    if (!user) return;
     fetch("/api/shelf")
       .then((r) => r.json())
       .then((d) => setEntries(d.entries ?? []))
       .finally(() => setLoading(false));
-  }, [status]);
+  }, [user]);
 
   async function handleRemoveFromShelf(entryId: string) {
     await fetch("/api/shelf", {
@@ -72,10 +72,8 @@ export default function ShelfPage() {
   }
 
   async function handleAddToShelf(googleBooksId: string, shelfStatus: string) {
-    // Find existing entry to copy metadata from
     const existing = entries.find((e) => e.googleBooksId === googleBooksId);
     if (!existing) return;
-
     const res = await fetch("/api/shelf", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -94,14 +92,10 @@ export default function ShelfPage() {
   }
 
   const grouped = groupEntries(entries);
-  const uniqueBookCount = grouped.length;
-
   const filtered =
-    tab === "ALL"
-      ? grouped
-      : grouped.filter((b) => b.entries.some((e) => e.status === tab));
+    tab === "ALL" ? grouped : grouped.filter((b) => b.entries.some((e) => e.status === tab));
 
-  if (status === "loading" || loading) {
+  if (authLoading || loading) {
     return (
       <div className="flex items-center justify-center min-h-screen">
         <p className="text-gray-400" style={{ fontFamily: "system-ui, sans-serif" }}>Loading…</p>
@@ -113,39 +107,25 @@ export default function ShelfPage() {
     <div className="max-w-6xl mx-auto px-4 py-10">
       <div className="flex items-center justify-between mb-8">
         <div>
-          <h1 className="text-3xl font-bold">
-            {session?.user?.name?.split(" ")[0]}&apos;s Shelf
-          </h1>
+          <h1 className="text-3xl font-bold">{user?.name?.split(" ")[0]}&apos;s Shelf</h1>
           <p className="text-gray-500 text-sm mt-1" style={{ fontFamily: "system-ui, sans-serif" }}>
-            {uniqueBookCount} {uniqueBookCount === 1 ? "book" : "books"} · hover a cover to manage shelves
+            {grouped.length} {grouped.length === 1 ? "book" : "books"} · hover a cover to manage shelves
           </p>
         </div>
-        <Link
-          href="/search"
-          className="bg-black text-white px-5 py-2 rounded-full text-sm hover:bg-gray-800 transition-colors"
-          style={{ fontFamily: "system-ui, sans-serif" }}
-        >
+        <Link href="/search" className="bg-black text-white px-5 py-2 rounded-full text-sm hover:bg-gray-800 transition-colors"
+          style={{ fontFamily: "system-ui, sans-serif" }}>
           + Add books
         </Link>
       </div>
 
-      {/* Tabs */}
       <div className="flex gap-1 mb-8 border-b border-gray-200" style={{ fontFamily: "system-ui, sans-serif" }}>
         {TABS.map((t) => {
-          const count =
-            t.key === "ALL"
-              ? uniqueBookCount
-              : grouped.filter((b) => b.entries.some((e) => e.status === t.key)).length;
+          const count = t.key === "ALL" ? grouped.length : grouped.filter((b) => b.entries.some((e) => e.status === t.key)).length;
           return (
-            <button
-              key={t.key}
-              onClick={() => setTab(t.key)}
-              className={`px-4 py-2 text-sm transition-colors relative ${
-                tab === t.key
-                  ? "text-black font-medium after:absolute after:bottom-0 after:left-0 after:right-0 after:h-0.5 after:bg-black"
-                  : "text-gray-400 hover:text-gray-700"
-              }`}
-            >
+            <button key={t.key} onClick={() => setTab(t.key)}
+              className={`px-4 py-2 text-sm transition-colors relative ${tab === t.key
+                ? "text-black font-medium after:absolute after:bottom-0 after:left-0 after:right-0 after:h-0.5 after:bg-black"
+                : "text-gray-400 hover:text-gray-700"}`}>
               {t.label}
               {count > 0 && <span className="ml-1.5 text-xs text-gray-400">({count})</span>}
             </button>
@@ -166,12 +146,9 @@ export default function ShelfPage() {
       ) : (
         <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-4">
           {filtered.map((book) => (
-            <BookCard
-              key={book.googleBooksId}
-              book={book}
+            <BookCard key={book.googleBooksId} book={book}
               onRemoveFromShelf={handleRemoveFromShelf}
-              onAddToShelf={handleAddToShelf}
-            />
+              onAddToShelf={handleAddToShelf} />
           ))}
         </div>
       )}

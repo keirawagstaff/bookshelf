@@ -1,28 +1,26 @@
 import { NextRequest, NextResponse } from "next/server";
-import { auth } from "@/lib/auth";
+import { getSession } from "@/lib/session";
 import { prisma } from "@/lib/prisma";
 
 export async function GET(
   _req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const session = await auth();
-  if (!session?.user?.id)
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const session = await getSession();
+  if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const { id: targetUserId } = await params;
 
-  // Only friends can see each other's shelves
   const friendship = await prisma.friendship.findFirst({
     where: {
       OR: [
-        { senderId: session.user.id, receiverId: targetUserId, status: "ACCEPTED" },
-        { senderId: targetUserId, receiverId: session.user.id, status: "ACCEPTED" },
+        { senderId: session.id, receiverId: targetUserId, status: "ACCEPTED" },
+        { senderId: targetUserId, receiverId: session.id, status: "ACCEPTED" },
       ],
     },
   });
 
-  if (!friendship && targetUserId !== session.user.id)
+  if (!friendship && targetUserId !== session.id)
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
 
   const user = await prisma.user.findUnique({
