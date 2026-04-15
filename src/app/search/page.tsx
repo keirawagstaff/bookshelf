@@ -169,8 +169,8 @@ export default function SearchPage() {
                   })}
                   <button onClick={() => addToShelves(book)}
                     disabled={state.selected.size === 0 || state.saving}
-                    className="mt-1 text-xs bg-black text-white rounded px-2 py-1 hover:bg-gray-800 transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
-                    style={{ fontFamily: "system-ui, sans-serif" }}>
+                    className="mt-1 text-xs text-white rounded px-2 py-1 hover:opacity-90 transition-opacity disabled:opacity-30 disabled:cursor-not-allowed"
+                    style={{ fontFamily: "DM Sans, system-ui, sans-serif", background: "var(--accent)" }}>
                     {state.saving ? "Adding…" : "Add to shelf"}
                   </button>
                 </div>

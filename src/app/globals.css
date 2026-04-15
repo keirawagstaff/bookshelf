@@ -3,34 +3,51 @@
 :root {
   --background: #ffffff;
   --foreground: #0a0a0a;
+  --accent: #8B6F47;
+  --accent-hover: #7a6040;
+  --card-bg: #faf8f5;
+  --muted-bg: #f5f0e8;
+  --stat-bg: #f7f3ee;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --background: #1a1714;
+    --foreground: #f0ece4;
+    --accent: #a8895e;
+    --accent-hover: #bfa070;
+    --card-bg: #252017;
+    --muted-bg: #2a2318;
+    --stat-bg: #221e18;
+  }
 }
 
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: "Georgia", "Times New Roman", serif;
+  font-family: "DM Sans", system-ui, -apple-system, sans-serif;
   -webkit-font-smoothing: antialiased;
 }
 
 h1, h2, h3 {
-  font-family: "Georgia", "Times New Roman", serif;
+  font-family: "Lora", "Georgia", serif;
   letter-spacing: -0.02em;
 }
 
 button, input, label, nav, .sans {
-  font-family: system-ui, -apple-system, sans-serif;
+  font-family: "DM Sans", system-ui, -apple-system, sans-serif;
 }
 
 .book-card {
-  transition: transform 0.15s ease, box-shadow 0.15s ease;
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
 }
 .book-card:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
+  transform: translateY(-3px) rotate(-0.5deg);
+  box-shadow: 4px 8px 20px rgba(0, 0, 0, 0.18);
 }
 
 .book-cover {
-  box-shadow: -3px 3px 8px rgba(0, 0, 0, 0.25),
+  box-shadow: 2px 4px 12px rgba(0, 0, 0, 0.12),
     inset -2px 0 4px rgba(0, 0, 0, 0.1);
 }
 

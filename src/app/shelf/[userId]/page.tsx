@@ -80,7 +80,7 @@ export default function FriendShelfPage() {
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-screen">
-        <p className="text-gray-400" style={{ fontFamily: "system-ui, sans-serif" }}>Loading…</p>
+        <p className="text-gray-400" style={{ fontFamily: "DM Sans, system-ui, sans-serif" }}>Loading…</p>
       </div>
     );
   }
@@ -88,7 +88,7 @@ export default function FriendShelfPage() {
   if (error) {
     return (
       <div className="flex items-center justify-center min-h-screen">
-        <p className="text-gray-500" style={{ fontFamily: "system-ui, sans-serif" }}>{error}</p>
+        <p className="text-gray-500" style={{ fontFamily: "DM Sans, system-ui, sans-serif" }}>{error}</p>
       </div>
     );
   }
@@ -96,30 +96,46 @@ export default function FriendShelfPage() {
   return (
     <div className="max-w-6xl mx-auto px-4 py-10">
       <div className="mb-8">
-        <h1 className="text-3xl font-bold">{friendName}&apos;s Shelf</h1>
-        <p className="text-gray-500 text-sm mt-1" style={{ fontFamily: "system-ui, sans-serif" }}>
+        <h1 style={{ fontFamily: "Lora, Georgia, serif", fontWeight: 400, fontSize: "2rem", lineHeight: 1.2 }}>
+          {friendName}&apos;s Shelf
+        </h1>
+        <p className="text-gray-500 text-sm mt-1" style={{ fontFamily: "DM Sans, system-ui, sans-serif" }}>
           {grouped.length} {grouped.length === 1 ? "book" : "books"} total
         </p>
       </div>
 
-      <div className="flex gap-1 mb-8 border-b border-gray-200" style={{ fontFamily: "system-ui, sans-serif" }}>
+      <div className="flex gap-1 mb-8 border-b border-gray-200" style={{ fontFamily: "DM Sans, system-ui, sans-serif" }}>
         {TABS.map((t) => {
           const count =
             t.key === "ALL"
               ? grouped.length
               : grouped.filter((b) => b.entries.some((e) => e.status === t.key)).length;
+          const active = tab === t.key;
           return (
             <button
               key={t.key}
               onClick={() => setTab(t.key)}
-              className={`px-4 py-2 text-sm transition-colors relative ${
-                tab === t.key
-                  ? "text-black font-medium after:absolute after:bottom-0 after:left-0 after:right-0 after:h-0.5 after:bg-black"
-                  : "text-gray-400 hover:text-gray-700"
-              }`}
+              className="px-4 py-2 text-sm transition-colors flex items-center gap-1.5"
+              style={{
+                color: active ? "var(--accent)" : "#9ca3af",
+                borderBottom: active ? "2px solid var(--accent)" : "2px solid transparent",
+                marginBottom: -1,
+                fontWeight: active ? 500 : 400,
+              }}
             >
               {t.label}
-              {count > 0 && <span className="ml-1.5 text-xs text-gray-400">({count})</span>}
+              {count > 0 && (
+                <span
+                  className="rounded-full px-1.5 py-0.5 leading-none"
+                  style={{
+                    fontSize: 10,
+                    background: active ? "var(--accent)" : "#e5e7eb",
+                    color: active ? "#fff" : "#6b7280",
+                  }}
+                >
+                  {count}
+                </span>
+              )}
             </button>
           );
         })}

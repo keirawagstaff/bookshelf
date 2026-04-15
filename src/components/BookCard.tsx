@@ -29,7 +29,22 @@ export const STATUS_LABELS: Record<string, string> = {
   READ: "Read",
 };
 
+// Priority order for determining the dominant status (left-border color)
 const STATUS_ORDER = ["READING", "WANT_TO_READ", "READ", "OWNED"];
+
+const STATUS_BORDER_COLOR: Record<string, string> = {
+  READING: "#4a7ab5",
+  WANT_TO_READ: "#d4890a",
+  READ: "#c95050",
+  OWNED: "#b89060",
+};
+
+const STATUS_BADGE: Record<string, { background: string; color: string }> = {
+  READ: { background: "#e8f5e0", color: "#3d6b22" },
+  READING: { background: "#deeaf7", color: "#2c5f9e" },
+  WANT_TO_READ: { background: "#fef3dc", color: "#8b6020" },
+  OWNED: { background: "#f0e8d8", color: "#6b5030" },
+};
 
 export default function BookCard({
   book,
@@ -41,6 +56,8 @@ export default function BookCard({
   onAddToShelf?: (googleBooksId: string, status: string) => void;
 }) {
   const currentStatuses = new Set(book.entries.map((e) => e.status));
+  const dominantStatus = STATUS_ORDER.find((s) => currentStatuses.has(s));
+  const borderColor = dominantStatus ? STATUS_BORDER_COLOR[dominantStatus] : "transparent";
 
   function handleToggle(status: string) {
     if (currentStatuses.has(status)) {
@@ -52,7 +69,14 @@ export default function BookCard({
   }
 
   return (
-    <div className="book-card group relative flex flex-col bg-white border border-gray-200 rounded-lg overflow-hidden">
+    <div
+      className="book-card group relative flex flex-col rounded-lg overflow-hidden"
+      style={{
+        background: "var(--card-bg)",
+        border: "1px solid rgba(0,0,0,0.07)",
+        borderLeft: `4px solid ${borderColor}`,
+      }}
+    >
       {/* Cover */}
       <div className="relative bg-gray-100 aspect-[2/3] w-full">
         {book.coverImage ? (
@@ -65,7 +89,9 @@ export default function BookCard({
           />
         ) : (
           <div className="absolute inset-0 flex items-center justify-center bg-gray-900 text-white text-center p-3">
-            <span className="text-xs font-medium leading-tight">{book.title}</span>
+            <span className="text-xs font-medium leading-tight" style={{ fontFamily: "Lora, Georgia, serif" }}>
+              {book.title}
+            </span>
           </div>
         )}
 
@@ -78,7 +104,7 @@ export default function BookCard({
                 <label
                   key={s}
                   className="flex items-center gap-2 text-white text-xs cursor-pointer select-none"
-                  style={{ fontFamily: "system-ui, sans-serif" }}
+                  style={{ fontFamily: "DM Sans, system-ui, sans-serif" }}
                 >
                   <input
                     type="checkbox"
@@ -97,14 +123,16 @@ export default function BookCard({
 
       {/* Info */}
       <div className="p-2.5 flex-1 flex flex-col gap-1">
-        <p className="text-sm font-semibold leading-tight line-clamp-2">{book.title}</p>
-        <p className="text-xs text-gray-500 line-clamp-1" style={{ fontFamily: "system-ui, sans-serif" }}>
+        <p className="text-sm font-semibold leading-tight line-clamp-2" style={{ fontFamily: "Lora, Georgia, serif" }}>
+          {book.title}
+        </p>
+        <p className="text-xs text-gray-500 line-clamp-1" style={{ fontFamily: "DM Sans, system-ui, sans-serif" }}>
           {book.author}
         </p>
         {book.rating && (
           <div className="flex gap-0.5 mt-0.5">
             {Array.from({ length: 5 }).map((_, i) => (
-              <span key={i} className={i < book.rating! ? "text-black" : "text-gray-300"} style={{ fontSize: 10 }}>
+              <span key={i} style={{ fontSize: 10, color: i < book.rating! ? "var(--accent)" : "#d1d5db" }}>
                 ★
               </span>
             ))}
@@ -112,15 +140,23 @@ export default function BookCard({
         )}
         {/* Status badges */}
         <div className="flex flex-wrap gap-1 mt-auto pt-1">
-          {STATUS_ORDER.filter((s) => currentStatuses.has(s)).map((s) => (
-            <span
-              key={s}
-              className="text-xs bg-gray-100 text-gray-600 rounded px-1.5 py-0.5 leading-none"
-              style={{ fontFamily: "system-ui, sans-serif", fontSize: 10 }}
-            >
-              {STATUS_LABELS[s]}
-            </span>
-          ))}
+          {STATUS_ORDER.filter((s) => currentStatuses.has(s)).map((s) => {
+            const badge = STATUS_BADGE[s] ?? { background: "#f3f4f6", color: "#6b7280" };
+            return (
+              <span
+                key={s}
+                className="rounded px-1.5 py-0.5 leading-none"
+                style={{
+                  fontFamily: "DM Sans, system-ui, sans-serif",
+                  fontSize: 10,
+                  background: badge.background,
+                  color: badge.color,
+                }}
+              >
+                {STATUS_LABELS[s]}
+              </span>
+            );
+          })}
         </div>
       </div>
     </div>

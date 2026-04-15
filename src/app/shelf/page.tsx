@@ -95,39 +95,98 @@ export default function ShelfPage() {
   const filtered =
     tab === "ALL" ? grouped : grouped.filter((b) => b.entries.some((e) => e.status === tab));
 
+  const statReading = grouped.filter((b) => b.entries.some((e) => e.status === "READING")).length;
+  const statWantToRead = grouped.filter((b) => b.entries.some((e) => e.status === "WANT_TO_READ")).length;
+  const statRead = grouped.filter((b) => b.entries.some((e) => e.status === "READ")).length;
+
   if (authLoading || loading) {
     return (
       <div className="flex items-center justify-center min-h-screen">
-        <p className="text-gray-400" style={{ fontFamily: "system-ui, sans-serif" }}>Loading…</p>
+        <p className="text-gray-400" style={{ fontFamily: "DM Sans, system-ui, sans-serif" }}>Loading…</p>
       </div>
     );
   }
 
   return (
     <div className="max-w-6xl mx-auto px-4 py-10">
-      <div className="flex items-center justify-between mb-8">
+      {/* Header */}
+      <div className="flex items-center justify-between mb-6">
         <div>
-          <h1 className="text-3xl font-bold">{user?.name?.split(" ")[0]}&apos;s Shelf</h1>
-          <p className="text-gray-500 text-sm mt-1" style={{ fontFamily: "system-ui, sans-serif" }}>
-            {grouped.length} {grouped.length === 1 ? "book" : "books"} · hover a cover to manage shelves
+          <h1 style={{ fontFamily: "Lora, Georgia, serif", fontWeight: 400, fontSize: "2rem", lineHeight: 1.2 }}>
+            {user?.name?.split(" ")[0]}&apos;s Shelf
+          </h1>
+          <p className="text-gray-500 text-sm mt-1" style={{ fontFamily: "DM Sans, system-ui, sans-serif" }}>
+            hover a cover to manage shelves
           </p>
         </div>
-        <Link href="/search" className="bg-black text-white px-5 py-2 rounded-full text-sm hover:bg-gray-800 transition-colors"
-          style={{ fontFamily: "system-ui, sans-serif" }}>
+        <Link
+          href="/search"
+          className="text-white px-5 py-2 rounded-full text-sm hover:opacity-90 transition-opacity"
+          style={{ fontFamily: "DM Sans, system-ui, sans-serif", background: "var(--accent)" }}
+        >
           + Add books
         </Link>
       </div>
 
-      <div className="flex gap-1 mb-8 border-b border-gray-200" style={{ fontFamily: "system-ui, sans-serif" }}>
+      {/* Stats bar */}
+      <div className="grid grid-cols-4 gap-3 mb-8">
+        {[
+          { value: grouped.length, label: "Total Books" },
+          { value: statRead, label: "Books Read" },
+          { value: statReading, label: "Reading" },
+          { value: statWantToRead, label: "Want to Read" },
+        ].map(({ value, label }) => (
+          <div
+            key={label}
+            className="rounded-xl px-4 py-3 text-center"
+            style={{ background: "var(--stat-bg)" }}
+          >
+            <p
+              className="text-2xl"
+              style={{ fontFamily: "Lora, Georgia, serif", fontWeight: 500, color: "var(--accent)" }}
+            >
+              {value}
+            </p>
+            <p
+              className="text-gray-500 mt-0.5"
+              style={{ fontFamily: "DM Sans, system-ui, sans-serif", fontSize: 11, letterSpacing: "0.06em", textTransform: "uppercase" }}
+            >
+              {label}
+            </p>
+          </div>
+        ))}
+      </div>
+
+      {/* Tabs */}
+      <div className="flex gap-1 mb-8 border-b border-gray-200" style={{ fontFamily: "DM Sans, system-ui, sans-serif" }}>
         {TABS.map((t) => {
           const count = t.key === "ALL" ? grouped.length : grouped.filter((b) => b.entries.some((e) => e.status === t.key)).length;
+          const active = tab === t.key;
           return (
-            <button key={t.key} onClick={() => setTab(t.key)}
-              className={`px-4 py-2 text-sm transition-colors relative ${tab === t.key
-                ? "text-black font-medium after:absolute after:bottom-0 after:left-0 after:right-0 after:h-0.5 after:bg-black"
-                : "text-gray-400 hover:text-gray-700"}`}>
+            <button
+              key={t.key}
+              onClick={() => setTab(t.key)}
+              className="px-4 py-2 text-sm transition-colors relative flex items-center gap-1.5"
+              style={{
+                color: active ? "var(--accent)" : "#9ca3af",
+                borderBottom: active ? "2px solid var(--accent)" : "2px solid transparent",
+                marginBottom: -1,
+                fontWeight: active ? 500 : 400,
+              }}
+            >
               {t.label}
-              {count > 0 && <span className="ml-1.5 text-xs text-gray-400">({count})</span>}
+              {count > 0 && (
+                <span
+                  className="rounded-full px-1.5 py-0.5 leading-none"
+                  style={{
+                    fontSize: 10,
+                    background: active ? "var(--accent)" : "#e5e7eb",
+                    color: active ? "#fff" : "#6b7280",
+                  }}
+                >
+                  {count}
+                </span>
+              )}
             </button>
           );
         })}
@@ -136,10 +195,10 @@ export default function ShelfPage() {
       {filtered.length === 0 ? (
         <div className="text-center py-24">
           <p className="text-5xl mb-4">📖</p>
-          <p className="text-gray-500 mb-4" style={{ fontFamily: "system-ui, sans-serif" }}>
+          <p className="text-gray-500 mb-4" style={{ fontFamily: "DM Sans, system-ui, sans-serif" }}>
             {tab === "ALL" ? "Your shelf is empty. Start adding books!" : "No books in this category yet."}
           </p>
-          <Link href="/search" className="text-black underline text-sm" style={{ fontFamily: "system-ui, sans-serif" }}>
+          <Link href="/search" className="text-sm underline" style={{ color: "var(--accent)", fontFamily: "DM Sans, system-ui, sans-serif" }}>
             Search for books
           </Link>
         </div>
