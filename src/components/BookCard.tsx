@@ -189,6 +189,16 @@ export default function BookCard({
             );
           })}
         </div>
+        <a
+          href={`https://bookshop.org/search?keywords=${encodeURIComponent(`${book.title} ${book.author}`)}`}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="text-xs mt-1"
+          style={{ fontFamily: "DM Sans, system-ui, sans-serif", color: "var(--accent)" }}
+          onClick={(e) => e.stopPropagation()}
+        >
+          Buy →
+        </a>
       </div>
     </div>
   );
