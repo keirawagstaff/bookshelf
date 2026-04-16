@@ -50,10 +50,12 @@ export default function BookCard({
   book,
   onRemoveFromShelf,
   onAddToShelf,
+  onRateBook,
 }: {
   book: GroupedBook;
   onRemoveFromShelf?: (entryId: string) => void;
   onAddToShelf?: (googleBooksId: string, status: string) => void;
+  onRateBook?: (googleBooksId: string, rating: number) => void;
 }) {
   const currentStatuses = new Set(book.entries.map((e) => e.status));
   const dominantStatus = STATUS_ORDER.find((s) => currentStatuses.has(s));
@@ -95,8 +97,8 @@ export default function BookCard({
           </div>
         )}
 
-        {/* Hover overlay — shelf toggles */}
-        {(onRemoveFromShelf || onAddToShelf) && (
+        {/* Hover overlay — shelf toggles + rating */}
+        {(onRemoveFromShelf || onAddToShelf || onRateBook) && (
           <div className="absolute inset-0 bg-black/75 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col justify-center gap-1.5 p-3">
             {STATUS_ORDER.map((s) => {
               const active = currentStatuses.has(s);
@@ -117,6 +119,35 @@ export default function BookCard({
                 </label>
               );
             })}
+            {onRateBook && (
+              <div className="mt-1.5 pt-1.5 border-t border-white/20">
+                <p className="text-white/60 mb-1" style={{ fontFamily: "DM Sans, system-ui, sans-serif", fontSize: 10 }}>
+                  Your rating
+                </p>
+                <div className="flex gap-0.5">
+                  {[1, 2, 3, 4, 5].map((star) => (
+                    <button
+                      key={star}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onRateBook(book.googleBooksId, star === book.rating ? 0 : star);
+                      }}
+                      style={{
+                        fontSize: 18,
+                        color: book.rating && star <= book.rating ? "var(--accent)" : "rgba(255,255,255,0.35)",
+                        background: "none",
+                        border: "none",
+                        cursor: "pointer",
+                        padding: 0,
+                        lineHeight: 1,
+                      }}
+                    >
+                      ★
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
         )}
       </div>

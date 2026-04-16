@@ -71,6 +71,17 @@ export default function ShelfPage() {
     setEntries((prev) => prev.filter((e) => e.id !== entryId));
   }
 
+  async function handleRateBook(googleBooksId: string, rating: number) {
+    await fetch("/api/shelf", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ googleBooksId, rating }),
+    });
+    setEntries((prev) =>
+      prev.map((e) => (e.googleBooksId === googleBooksId ? { ...e, rating: rating || null } : e))
+    );
+  }
+
   async function handleAddToShelf(googleBooksId: string, shelfStatus: string) {
     const existing = entries.find((e) => e.googleBooksId === googleBooksId);
     if (!existing) return;
@@ -207,7 +218,8 @@ export default function ShelfPage() {
           {filtered.map((book) => (
             <BookCard key={book.googleBooksId} book={book}
               onRemoveFromShelf={handleRemoveFromShelf}
-              onAddToShelf={handleAddToShelf} />
+              onAddToShelf={handleAddToShelf}
+              onRateBook={handleRateBook} />
           ))}
         </div>
       )}

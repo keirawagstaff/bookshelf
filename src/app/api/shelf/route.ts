@@ -59,13 +59,14 @@ export async function PATCH(req: NextRequest) {
   const session = await getSession();
   if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-  const { id, rating, review } = await req.json();
+  const { id, googleBooksId, rating, review } = await req.json();
   try {
-    const entry = await prisma.bookEntry.updateMany({
-      where: { id, userId: session.id },
-      data: { rating, review },
-    });
-    return NextResponse.json({ entry });
+    // When googleBooksId is provided, update rating/review across all shelf entries for that book
+    const where = googleBooksId
+      ? { userId: session.id, googleBooksId }
+      : { id, userId: session.id };
+    await prisma.bookEntry.updateMany({ where, data: { rating: rating || null, review } });
+    return NextResponse.json({ success: true });
   } catch (e) {
     console.error("PATCH /api/shelf error:", e);
     return NextResponse.json({ error: "Database error" }, { status: 500 });
