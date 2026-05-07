@@ -190,7 +190,7 @@ export default function BookCard({
           })}
         </div>
         <a
-          href={`https://bookshop.org/search?keywords=${encodeURIComponent(`${book.title} ${book.author}`)}`}
+          href={`https://www.amazon.com/s?k=${encodeURIComponent(`${book.title} ${book.author}`)}&i=stripbooks`}
           target="_blank"
           rel="noopener noreferrer"
           className="text-xs mt-1"
